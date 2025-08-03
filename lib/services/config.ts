@@ -10,8 +10,8 @@ export const AUTH_CONFIG = {
 
 // Role constants
 export const USER_ROLES = {
-  USER: 'user',
-  ADMIN: 'admin',
+  USER: 1,
+  ADMIN: 2,
 } as const;
 
 // API endpoints

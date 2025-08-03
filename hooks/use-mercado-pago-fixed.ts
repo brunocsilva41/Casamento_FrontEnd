@@ -1,10 +1,10 @@
 import {
     CheckoutCallbacks,
+    CreatePaymentRequest,
     CreditCardForm,
     InstallmentOption,
     MercadoPagoConfig,
     PaymentMethod,
-    CreatePaymentRequest,
     PaymentResponse,
     PaymentToken,
     PixPayment
@@ -34,8 +34,8 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
     isLoading: false,
     error: null,
     paymentMethods: [
-      { id: 'pix', name: 'PIX', icon: '💳', enabled: true },
-      { id: 'credit_card', name: 'Cartão de Crédito', icon: '💳', enabled: true }
+      { id: 'PIX', name: 'PIX', icon: '💳', enabled: true },
+      { id: 'CREDIT_CARD', name: 'Cartão de Crédito', icon: '💳', enabled: true }
     ],
     selectedMethod: null,
     pixPayment: null,
@@ -60,7 +60,7 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
   const startPaymentStatusPolling = useCallback((paymentId: string) => {
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`${config.paymentStatusApiUrl}/${paymentId}`, {
+        const response = await fetch(`${config.apiBaseUrl}/api/payments/${paymentId}`, {
           headers: {
             'Authorization': `Bearer ${config.publicKey}`,
           },
@@ -71,21 +71,27 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
           const paymentResponse: PaymentResponse = {
             id: paymentData.id,
             status: paymentData.status,
-            statusDetail: paymentData.status_detail,
-            transactionAmount: paymentData.transaction_amount,
-            dateCreated: paymentData.date_created,
-            dateApproved: paymentData.date_approved,
-            paymentMethodId: paymentData.payment_method_id,
+            method: paymentData.method || 'PIX',
+            amount: paymentData.amount || paymentData.transaction_amount,
+            description: paymentData.description,
+            createdAt: paymentData.createdAt || paymentData.date_created,
+            updatedAt: paymentData.updatedAt || paymentData.date_updated || new Date().toISOString(),
+            approvedAt: paymentData.approvedAt || paymentData.date_approved,
+            customer: paymentData.customer || {
+              name: '',
+              email: '',
+              document: '',
+            },
           };
 
           updateState({ paymentStatus: paymentResponse });
 
-          if (paymentResponse.status === 'approved') {
+          if (paymentResponse.status === 'APPROVED') {
             clearInterval(pollInterval);
             callbacks.onSuccess(paymentResponse);
-          } else if (paymentResponse.status === 'rejected' || paymentResponse.status === 'cancelled') {
+          } else if (paymentResponse.status === 'REJECTED' || paymentResponse.status === 'CANCELLED') {
             clearInterval(pollInterval);
-            callbacks.onError(new Error(`Pagamento ${paymentResponse.status}: ${paymentResponse.statusDetail}`));
+            callbacks.onError(new Error(`Pagamento ${paymentResponse.status}`));
           }
         }
       } catch (error) {
@@ -95,27 +101,27 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
 
     // Clear interval after 10 minutes
     setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000);
-  }, [config.paymentStatusApiUrl, config.publicKey, callbacks, updateState]);
+  }, [config.apiBaseUrl, config.publicKey, callbacks, updateState]);
 
   // Generate PIX Payment
   const generatePixPayment = useCallback(async () => {
-    if (!config.pixApiUrl) {
-      setError('URL da API PIX não configurada');
-      return;
-    }
-
     setLoading(true);
     try {
-      const response = await fetch(config.pixApiUrl, {
+      const response = await fetch(`${config.apiBaseUrl}/api/payments/pix`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${config.publicKey}`,
         },
         body: JSON.stringify({
-          transaction_amount: amount,
+          method: 'PIX',
+          amount,
           description,
-          payment_method_id: 'pix',
+          customer: {
+            name: 'Cliente',
+            email: 'cliente@email.com',
+            document: '00000000000',
+          },
         }),
       });
 
@@ -126,11 +132,12 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
       const data = await response.json();
       
       const pixPayment: PixPayment = {
-        transactionId: data.id,
-        qrCodeBase64: data.point_of_interaction?.transaction_data?.qr_code_base64 || '',
-        pixCode: data.point_of_interaction?.transaction_data?.qr_code || '',
+        id: data.id,
+        qrCodeBase64: data.qrCodeBase64 || data.point_of_interaction?.transaction_data?.qr_code_base64 || '',
+        pixCode: data.pixCode || data.point_of_interaction?.transaction_data?.qr_code || '',
         amount,
-        expiresAt: data.date_of_expiration || new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        expiresAt: data.expiresAt || data.date_of_expiration || new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        status: data.status || 'PENDING',
       };
 
       updateState({ pixPayment, isLoading: false });
@@ -234,7 +241,7 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
         amount,
         description,
         customer: {
-          name: cardForm.cardholderName,
+          name: cardForm.holderName,
           email: 'customer@email.com', // This should come from props
           document: cardForm.documentNumber,
         },
@@ -242,7 +249,7 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
         installments,
       };
 
-      const response = await fetch(config.creditCardApiUrl, {
+      const response = await fetch(`${config.apiBaseUrl}/api/payments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -259,22 +266,29 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
       const paymentResponse: PaymentResponse = {
         id: paymentData.id,
         status: paymentData.status,
-        statusDetail: paymentData.status_detail,
-        transactionAmount: paymentData.transaction_amount,
-        dateCreated: paymentData.date_created,
-        dateApproved: paymentData.date_approved,
-        paymentMethodId: paymentData.payment_method_id,
+        method: 'CREDIT_CARD',
+        amount: paymentData.transaction_amount || amount,
+        description: paymentData.description || description,
+        createdAt: paymentData.date_created || new Date().toISOString(),
+        updatedAt: paymentData.date_updated || new Date().toISOString(),
+        approvedAt: paymentData.date_approved,
+        installments: paymentData.installments || installments,
+        customer: {
+          name: cardForm.holderName,
+          email: 'customer@email.com',
+          document: cardForm.documentNumber,
+        },
       };
 
       updateState({ paymentStatus: paymentResponse, isLoading: false });
       
       // Handle payment result
-      if (paymentResponse.status === 'approved') {
+      if (paymentResponse.status === 'APPROVED') {
         callbacks.onSuccess(paymentResponse);
-      } else if (paymentResponse.status === 'pending') {
+      } else if (paymentResponse.status === 'PENDING') {
         callbacks.onPending(paymentResponse);
       } else {
-        callbacks.onError(new Error(`Pagamento ${paymentResponse.status}: ${paymentResponse.statusDetail}`));
+        callbacks.onError(new Error(`Pagamento ${paymentResponse.status}`));
       }
       
     } catch (error) {
@@ -292,7 +306,7 @@ export const useMercadoPago = ({ config, amount, description, callbacks }: UseMe
         updateState({ installmentOptions: options });
       });
     }
-  }, [amount, updateState]);
+  }, [amount, updateState, getInstallmentOptions]);
 
   return {
     ...state,

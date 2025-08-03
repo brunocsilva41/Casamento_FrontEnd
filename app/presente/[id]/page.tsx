@@ -4,24 +4,26 @@ import { MercadoPagoCheckout } from '@/components/mercado-pago-checkout'
 import { MercadoPagoScript } from '@/components/mercado-pago-script'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { useNotification } from '@/hooks/use-notification'
 import { useGift } from '@/lib/api-service'
+import { useAuth } from '@/lib/contexts/auth-context'
 import { MercadoPagoProvider } from '@/lib/mercado-pago-context'
 import { CheckoutCallbacks, MercadoPagoConfig } from '@/lib/types'
-import { AlertCircle, ArrowLeft, Gift, Heart, Loader2, User } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Gift, Heart, Loader2, MessageSquare, User } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-export default function GiftDetailPage() {
-  const params = useParams()
-  const router = useRouter()
-  const [guestName, setGuestName] = useState('')
+export default function PresentePage({ params }: { params: { id: string } }) {
+  const { user, isAuthenticated } = useAuth()
+  const [giftMessage, setGiftMessage] = useState('')
   const [showCheckout, setShowCheckout] = useState(false)
-
   const { gift, loading, error } = useGift(params.id as string)
+  const { showWarning, showError } = useNotification()
+  const router = useRouter()
 
   // Configuração do Mercado Pago
   const mercadoPagoConfig: MercadoPagoConfig = {
@@ -44,8 +46,9 @@ export default function GiftDetailPage() {
   }
 
   const handleGiftPurchase = () => {
-    if (!guestName.trim()) {
-      alert('Por favor, digite seu nome')
+    if (!isAuthenticated) {
+      showWarning('Login Necessário', 'Faça login para presentear os noivos')
+      router.push('/login')
       return
     }
     setShowCheckout(true)
@@ -179,37 +182,59 @@ export default function GiftDetailPage() {
                     <Gift className="h-5 w-5 text-blue-600" />
                     Presentear Bruno & Laura
                   </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {isAuthenticated 
+                      ? `Olá ${user?.name}! Deixe uma mensagem carinhosa para os noivos` 
+                      : 'Faça login para presentear os noivos com este item especial'
+                    }
+                  </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="guestName" className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Seu nome
-                    </Label>
-                    <Input
-                      id="guestName"
-                      placeholder="Digite seu nome completo"
-                      value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
-                      className="mt-2"
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Seu nome aparecerá na mensagem de agradecimento
-                    </p>
-                  </div>
+                  {isAuthenticated ? (
+                    <>
+                      <div>
+                        <Label htmlFor="giftMessage" className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4" />
+                          Mensagem para os noivos (opcional)
+                        </Label>
+                        <Textarea
+                          id="giftMessage"
+                          placeholder="Deixe uma mensagem carinhosa para Bruno & Laura..."
+                          value={giftMessage}
+                          onChange={(e) => setGiftMessage(e.target.value)}
+                          className="mt-2 min-h-[100px]"
+                          maxLength={300}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {giftMessage.length}/300 caracteres • Sua mensagem aparecerá no agradecimento
+                        </p>
+                      </div>
 
-                  <Button
-                    onClick={handleGiftPurchase}
-                    className="w-full"
-                    size="lg"
-                  >
-                    <Heart className="mr-2 h-5 w-5" />
-                    Continuar para Pagamento
-                  </Button>
-
-                  <p className="text-sm text-muted-foreground text-center">
-                    Escolha entre PIX ou cartão de crédito na próxima etapa
-                  </p>
+                      <Button
+                        onClick={handleGiftPurchase}
+                        className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                      >
+                        <Heart className="mr-2 h-5 w-5" />
+                        Presentear com R$ {gift.price.toFixed(2).replace('.', ',')}
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="text-center space-y-4">
+                      <div className="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <User className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                        <h3 className="font-semibold mb-2">Entre na sua conta</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Para presentear os noivos, você precisa estar logado
+                        </p>
+                        <Button 
+                          onClick={() => router.push('/login')}
+                          className="w-full"
+                        >
+                          Fazer Login
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ) : !gift.claimedBy && showCheckout ? (
@@ -217,10 +242,10 @@ export default function GiftDetailPage() {
                 <MercadoPagoCheckout
                   config={mercadoPagoConfig}
                   amount={gift.price}
-                  description={`Presente: ${gift.name}`}
+                  description={`Presente: ${gift.name}${giftMessage ? ` - Mensagem: ${giftMessage}` : ''}`}
                   customer={{
-                    name: guestName,
-                    email: `${guestName.toLowerCase().replace(/\s+/g, '')}@guest.com`, // Email temporário baseado no nome
+                    name: user?.name || 'Usuário',
+                    email: user?.email || 'user@example.com',
                     document: '00000000000' // CPF temporário - idealmente deveria ser capturado
                   }}
                   giftId={gift.id}

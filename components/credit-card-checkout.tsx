@@ -21,8 +21,9 @@ const creditCardSchema = z.object({
     .regex(/^[a-zA-ZÀ-ÿ\s]+$/, 'Nome deve conter apenas letras'),
   cardNumber: z.string()
     .min(13, 'Número do cartão inválido')
-    .max(19, 'Número do cartão inválido')
-    .regex(/^\d+$/, 'Número do cartão deve conter apenas dígitos'),
+    .max(25, 'Número do cartão inválido') // Aumentado para incluir espaços
+    .refine(val => val.replace(/\s/g, '').length >= 13, 'Número do cartão muito curto')
+    .refine(val => /^\d[\d\s]*\d$/.test(val), 'Número do cartão deve conter apenas dígitos'),
   expirationMonth: z.string()
     .min(1, 'Mês é obrigatório')
     .max(2, 'Mês inválido'),
@@ -37,7 +38,8 @@ const creditCardSchema = z.object({
   documentNumber: z.string()
     .min(11, 'Documento inválido')
     .max(18, 'Documento inválido')
-    .regex(/^\d+$/, 'Documento deve conter apenas dígitos'),
+    .refine(val => val.replace(/\D/g, '').length >= 11, 'Documento muito curto')
+    .refine(val => /[\d\.\-\/]+/.test(val), 'Documento deve conter apenas números e formatação'),
   installments: z.number().min(1).max(12),
 });
 
@@ -394,7 +396,7 @@ export const CreditCardCheckout: React.FC<CreditCardCheckoutProps> = ({
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading || !form.formState.isValid}
+              disabled={isLoading}
               aria-label="Finalizar pagamento com cartão de crédito"
             >
               {isLoading ? (
@@ -409,6 +411,32 @@ export const CreditCardCheckout: React.FC<CreditCardCheckoutProps> = ({
                 </>
               )}
             </Button>
+
+            {/* Debug Info - Temporário */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs space-y-1 max-h-32 overflow-y-auto">
+                <div>Form Valid: {form.formState.isValid ? '✅' : '❌'}</div>
+                <div>Loading: {isLoading ? '✅' : '❌'}</div>
+                <div>Errors: {Object.keys(form.formState.errors).length}</div>
+                
+                {/* Valores dos campos */}
+                <div className="border-t pt-2 mt-2">
+                  <div>Nome: &quot;{form.watch('holderName')}&quot;</div>
+                  <div>Cartão: &quot;{form.watch('cardNumber')}&quot; (length: {form.watch('cardNumber')?.length})</div>
+                  <div>Mês: &quot;{form.watch('expirationMonth')}&quot;</div>
+                  <div>Ano: &quot;{form.watch('expirationYear')}&quot;</div>
+                  <div>CVV: &quot;{form.watch('cvv')}&quot;</div>
+                  <div>Doc: &quot;{form.watch('documentNumber')}&quot; (length: {form.watch('documentNumber')?.length})</div>
+                </div>
+                
+                {/* Erros específicos */}
+                {Object.entries(form.formState.errors).map(([key, error]) => (
+                  <div key={key} className="text-red-600">
+                    {key}: {error?.message}
+                  </div>
+                ))}
+              </div>
+            )}
           </form>
         </Form>
       </CardContent>

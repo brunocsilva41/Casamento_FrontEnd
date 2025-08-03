@@ -16,7 +16,7 @@ export const gifts: Gift[] = [
     name: 'Conjunto de Panelas Antiaderente',
     description: 'Set completo com 5 panelas antiaderentes',
     fullDescription: 'Conjunto de 5 panelas antiaderentes de alta qualidade, incluindo panelas de diferentes tamanhos para todas as necessidades culinárias. Material durável e de fácil limpeza, perfeito para começar a vida a dois na cozinha.',
-    price: 299.90,
+    price: 1.00,
     image: 'https://images.pexels.com/photos/4099237/pexels-photo-4099237.jpeg',
     category: 'Cozinha'
   },

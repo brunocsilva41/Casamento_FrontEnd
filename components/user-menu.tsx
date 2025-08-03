@@ -1,6 +1,7 @@
 'use client';
 
 import { LogOut, Settings, Shield, User } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useAuth } from '../lib/contexts/auth-context';
 import { AuthForm } from './auth-form';
@@ -101,9 +102,11 @@ export function UserMenu() {
         
         {isAdmin() && (
           <>
-            <DropdownMenuItem className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Gerenciar Presentes</span>
+            <DropdownMenuItem className="cursor-pointer" asChild>
+              <Link href="/admin">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Painel Administrativo</span>
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

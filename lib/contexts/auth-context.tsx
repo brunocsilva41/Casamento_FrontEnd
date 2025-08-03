@@ -80,7 +80,7 @@ interface AuthContextValue extends AuthState {
   
   // Helper methods
   isAdmin: () => boolean;
-  hasRole: (role: string) => boolean;
+  hasRole: (role: number) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -179,7 +179,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [state.user]);
 
   // Check if user has specific role
-  const hasRole = useCallback((role: string): boolean => {
+  const hasRole = useCallback((role: number): boolean => {
     return state.user?.role === role;
   }, [state.user]);
 

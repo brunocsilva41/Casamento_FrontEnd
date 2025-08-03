@@ -4,9 +4,9 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
-  createdAt: string;
-  updatedAt: string;
+  role: number; // 1 = USER, 2 = ADMIN
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LoginData {
@@ -62,10 +62,20 @@ export class AuthService {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Email ou senha incorretos');
+        // Try to get error message from response
+        try {
+          const errorData = await response.json();
+          if (response.status === 401) {
+            throw new Error(errorData.error || 'Email ou senha inválidos');
+          }
+          throw new Error(errorData.error || 'Erro no servidor. Tente novamente.');
+        } catch (parseError) {
+          // If response is not JSON, use default messages
+          if (response.status === 401) {
+            throw new Error('Email ou senha inválidos');
+          }
+          throw new Error('Erro no servidor. Tente novamente.');
         }
-        throw new Error('Erro no servidor. Tente novamente.');
       }
 
       const result: AuthResponse = await response.json();
@@ -76,6 +86,10 @@ export class AuthService {
       
       if (typeof window !== 'undefined') {
         localStorage.setItem('auth_token', this.token);
+        
+        // Set cookies for middleware
+        document.cookie = `authToken=${this.token}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=strict`;
+        document.cookie = `userRole=${result.data.user.role}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=strict`;
       }
 
       return result.data.user;
@@ -114,6 +128,10 @@ export class AuthService {
       
       if (typeof window !== 'undefined') {
         localStorage.setItem('auth_token', this.token);
+        
+        // Set cookies for middleware
+        document.cookie = `authToken=${this.token}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=strict`;
+        document.cookie = `userRole=${result.data.user.role}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=strict`;
       }
 
       return result.data.user;
@@ -164,6 +182,10 @@ export class AuthService {
     
     if (typeof window !== 'undefined') {
       localStorage.removeItem('auth_token');
+      
+      // Clear cookies
+      document.cookie = 'authToken=; path=/; max-age=0';
+      document.cookie = 'userRole=; path=/; max-age=0';
     }
   }
 
@@ -206,7 +228,7 @@ export class AuthService {
   /**
    * Check if user has specific role
    */
-  public hasRole(role: string): boolean {
+  public hasRole(role: number): boolean {
     return this.currentUser?.role === role;
   }
 }
