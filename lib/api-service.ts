@@ -1,4 +1,9 @@
 import { ClaimGiftRequest, ClaimGiftResponse, GeneratePixRequest, Gift, PixResponse } from './types';
+import {
+    CreatePagBankCheckoutRequest,
+    PagBankCheckoutResponse,
+    PagBankPaymentStatus
+} from './types/pagbank';
 
 const API_BASE_URL = 'http://localhost:3001';
 
@@ -48,6 +53,60 @@ export const giftService = {
       body: JSON.stringify(request),
     });
   },
+};
+
+export const pagBankService = {
+  // Criar checkout no PagBank
+  async createCheckout(request: CreatePagBankCheckoutRequest): Promise<PagBankCheckoutResponse> {
+    return apiRequest<PagBankCheckoutResponse>('/api/pagbank/checkout', {
+      method: 'POST',
+      body: JSON.stringify(request),
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      }
+    });
+  },
+
+  // Consultar status do checkout
+  async getCheckoutStatus(checkoutId: string): Promise<PagBankPaymentStatus> {
+    return apiRequest<PagBankPaymentStatus>(`/api/pagbank/checkout/${checkoutId}/status`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      }
+    });
+  },
+
+  // Buscar histórico de pagamentos
+  async getPaymentHistory(filters?: {
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<PagBankPaymentStatus[]> {
+    const queryParams = new URLSearchParams();
+    if (filters?.status) queryParams.append('status', filters.status);
+    if (filters?.startDate) queryParams.append('startDate', filters.startDate);
+    if (filters?.endDate) queryParams.append('endDate', filters.endDate);
+    
+    const endpoint = queryParams.toString() 
+      ? `/api/pagbank/payments?${queryParams.toString()}`
+      : '/api/pagbank/payments';
+
+    return apiRequest<PagBankPaymentStatus[]>(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      }
+    });
+  },
+
+  // Cancelar pagamento (se possível)
+  async cancelPayment(checkoutId: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>(`/api/pagbank/checkout/${checkoutId}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      }
+    });
+  }
 };
 
 export const pixService = {

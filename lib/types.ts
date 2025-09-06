@@ -37,10 +37,23 @@ export interface ApiError {
   error: string;
 }
 
+// Payment status type
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'REFUNDED' | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'refunded';
+
+// Payment request interface
+export interface PaymentRequest {
+  amount: number;
+  description: string;
+  metadata?: Record<string, string>;
+}
+
 // Mercado Pago Types
 export interface MercadoPagoConfig {
   publicKey: string;
   apiBaseUrl: string; // URL base da sua API backend
+  pixApiUrl: string;
+  creditCardApiUrl: string;
+  paymentStatusApiUrl: string;
 }
 
 export interface PaymentMethod {
@@ -102,12 +115,16 @@ export interface CreatePaymentRequest {
 export interface PaymentResponse {
   id: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'IN_PROCESS';
+  statusDetail?: string;
   method: 'PIX' | 'CREDIT_CARD';
   amount: number;
+  transactionAmount?: number;
   description: string;
   createdAt: string;
+  dateCreated?: string;
   updatedAt: string;
   approvedAt?: string;
+  dateApproved?: string;
   qrCode?: string;
   qrCodeBase64?: string;
   pixCode?: string;

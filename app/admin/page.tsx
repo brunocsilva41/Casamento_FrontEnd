@@ -1,182 +1,295 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useAuth } from '@/lib/contexts/auth-context'
-import { BarChart3, CreditCard, Gift, Settings, ShoppingBag, Users } from 'lucide-react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { AdminLayout } from '@/components/admin/admin-layout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAdminDashboard } from '@/hooks/use-admin';
+import { Activity, AlertCircle, CreditCard, DollarSign, Gift, TrendingUp, Users } from 'lucide-react';
+import { useEffect } from 'react';
+
+// Componente para cards de estatísticas
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  trend?: {
+    value: number;
+    isPositive: boolean;
+  };
+}
+
+function StatCard({ title, value, description, icon: Icon, trend }: StatCardProps) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground">{description}</p>
+          {trend && (
+            <div className={`flex items-center text-xs ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+              <TrendingUp className={`h-3 w-3 mr-1 ${!trend.isPositive ? 'rotate-180' : ''}`} />
+              {Math.abs(trend.value)}%
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Componente para atividade recente
+interface ActivityItemProps {
+  type: string;
+  description: string;
+  userName?: string;
+  timestamp: string;
+}
+
+function ActivityItem({ type, description, userName, timestamp }: ActivityItemProps) {
+  const getIcon = () => {
+    switch (type) {
+      case 'user_registered':
+        return <Users className="h-4 w-4 text-blue-500" />;
+      case 'gift_claimed':
+        return <Gift className="h-4 w-4 text-green-500" />;
+      case 'payment_completed':
+        return <CreditCard className="h-4 w-4 text-emerald-500" />;
+      case 'payment_cancelled':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Agora';
+    if (diffMins < 60) return `${diffMins}m atrás`;
+    if (diffHours < 24) return `${diffHours}h atrás`;
+    if (diffDays < 7) return `${diffDays}d atrás`;
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+      <div className="flex-shrink-0 mt-0.5">
+        {getIcon()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium">{description}</p>
+        {userName && (
+          <p className="text-xs text-muted-foreground">por {userName}</p>
+        )}
+      </div>
+      <div className="flex-shrink-0">
+        <span className="text-xs text-muted-foreground">
+          {formatTime(timestamp)}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
-  const { user, isAuthenticated, isAdmin } = useAuth()
-  const router = useRouter()
+  const { stats, recentActivity, loading, error, refetch } = useAdminDashboard();
 
-  // Verificar autenticação e permissão
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login?redirect=/admin')
-      return
-    }
-    
-    if (!isAdmin()) {
-      router.push('/presentes')
-      return
-    }
-  }, [isAuthenticated, isAdmin, router])
+    // Atualizar dados a cada 30 segundos
+    const interval = setInterval(refetch, 30000);
+    return () => clearInterval(interval);
+  }, [refetch]);
 
-  if (!isAuthenticated || !isAdmin()) {
-    return null
+  if (loading && !stats) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Visão geral do sistema de presentes de casamento
+            </p>
+          </div>
+          
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 bg-muted rounded animate-pulse mb-2" />
+                  <div className="h-3 bg-muted rounded animate-pulse w-2/3" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-96">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <AlertCircle className="h-5 w-5" />
+                Erro ao carregar dashboard
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">{error}</p>
+              <button
+                onClick={refetch}
+                className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90"
+              >
+                Tentar novamente
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+      </AdminLayout>
+    );
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Painel Administrativo</h1>
-        <p className="text-muted-foreground mt-2">
-          Bem-vindo, {user?.name}! Gerencie o sistema de presentes de casamento.
-        </p>
-      </div>
-
-      {/* Cards de métricas principais */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Presentes</CardTitle>
-            <Gift className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">45</div>
-            <p className="text-xs text-muted-foreground">
-              +2 desde ontem
+    <AdminLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Visão geral do sistema de presentes de casamento
             </p>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Última atualização: {new Date().toLocaleTimeString('pt-BR')}
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Presentes Vendidos</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">12</div>
-            <p className="text-xs text-muted-foreground">
-              +3 desde ontem
-            </p>
-          </CardContent>
-        </Card>
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Total de Usuários"
+            value={stats?.totalUsers || 0}
+            description="Usuários registrados"
+            icon={Users}
+            trend={{ value: 12, isPositive: true }}
+          />
+          <StatCard
+            title="Total de Presentes"
+            value={stats?.totalGifts || 0}
+            description={`${stats?.claimedGifts || 0} reivindicados`}
+            icon={Gift}
+          />
+          <StatCard
+            title="Pagamentos"
+            value={stats?.totalPayments || 0}
+            description={`${stats?.pendingPayments || 0} pendentes`}
+            icon={CreditCard}
+          />
+          <StatCard
+            title="Receita Total"
+            value={new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL'
+            }).format(stats?.totalRevenue || 0)}
+            description="Valor arrecadado"
+            icon={DollarSign}
+            trend={{ value: 8.5, isPositive: true }}
+          />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Arrecadado</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">R$ 2.850</div>
-            <p className="text-xs text-muted-foreground">
-              +R$ 450 desde ontem
-            </p>
-          </CardContent>
-        </Card>
+        {/* Content Grid */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Recent Activity */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Atividade Recente</CardTitle>
+              <CardDescription>
+                Últimas ações realizadas no sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity) => (
+                    <ActivityItem
+                      key={activity.id}
+                      type={activity.type}
+                      description={activity.description}
+                      userName={activity.userName}
+                      timestamp={activity.timestamp}
+                    />
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Nenhuma atividade recente</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Stats */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Resumo Rápido</CardTitle>
+              <CardDescription>
+                Estatísticas importantes
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Usuários ativos</span>
+                <span className="font-medium">{stats?.activeUsers || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Taxa de conversão</span>
+                <span className="font-medium">
+                  {stats?.totalGifts && stats?.claimedGifts && stats.totalGifts > 0 
+                    ? Math.round((stats.claimedGifts / stats.totalGifts) * 100)
+                    : 0
+                  }%
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Valor médio</span>
+                <span className="font-medium">
+                  {new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                  }).format(
+                    stats?.totalPayments && stats?.totalRevenue && stats.totalPayments > 0 
+                      ? (stats.totalRevenue / stats.totalPayments)
+                      : 0
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Pagamentos pendentes</span>
+                <span className="font-medium text-yellow-600">
+                  {stats?.pendingPayments || 0}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-
-      {/* Menu de navegação principal */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/presentes">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Gift className="h-5 w-5 text-blue-600" />
-                Gerenciar Presentes
-              </CardTitle>
-              <CardDescription>
-                Adicionar, editar e remover presentes da lista
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                Acessar
-              </Button>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/pagamentos">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-green-600" />
-                Pagamentos
-              </CardTitle>
-              <CardDescription>
-                Visualizar e gerenciar pagamentos recebidos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                Acessar
-              </Button>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/usuarios">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-purple-600" />
-                Usuários
-              </CardTitle>
-              <CardDescription>
-                Gerenciar usuários cadastrados no sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                Acessar
-              </Button>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/relatorios">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-orange-600" />
-                Relatórios
-              </CardTitle>
-              <CardDescription>
-                Visualizar estatísticas e relatórios detalhados
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                Acessar
-              </Button>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/configuracoes">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-gray-600" />
-                Configurações
-              </CardTitle>
-              <CardDescription>
-                Configurações gerais do sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                Acessar
-              </Button>
-            </CardContent>
-          </Link>
-        </Card>
-      </div>
-    </div>
-  )
+    </AdminLayout>
+  );
 }

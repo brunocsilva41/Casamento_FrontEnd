@@ -39,5 +39,10 @@ export function useNotification() {
     showSuccess,
     showWarning,
     showInfo,
+    // Aliases para compatibilidade
+    notifyError: showError,
+    notifySuccess: showSuccess,
+    notifyWarning: showWarning,
+    notifyInfo: showInfo,
   };
 }

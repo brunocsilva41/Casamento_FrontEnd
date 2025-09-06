@@ -126,7 +126,7 @@ export class AuthService {
   /**
    * Get current user profile
    */
-  public async getCurrentUser(): Promise<User> {
+  public async getCurrentUser(): Promise<User | null> {
     if (!this.isAuthenticated()) {
       throw new Error('Usuário não autenticado');
     }
@@ -148,7 +148,7 @@ export class AuthService {
       const result = await response.json();
       this.currentUser = result.data || result;
       
-      return this.currentUser;
+      return this.currentUser || null;
     } catch (error) {
       console.error('Erro ao buscar usuário atual:', error);
       throw error;
@@ -200,7 +200,11 @@ export class AuthService {
    * Check if user has admin role
    */
   public isAdmin(): boolean {
-    return this.currentUser?.role === USER_ROLES.ADMIN;
+    const userRole = this.currentUser?.role;
+    if (!userRole) return false;
+    
+    // Check if it's a number (2) or string ('2') for admin
+    return Number(userRole) === USER_ROLES.ADMIN || userRole === '2' || Number(userRole) === 2;
   }
 
   /**

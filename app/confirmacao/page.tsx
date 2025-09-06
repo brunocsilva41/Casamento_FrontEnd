@@ -2,24 +2,42 @@
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAuth } from '@/lib/contexts/auth-context'
 import { gifts } from '@/lib/gifts-data'
-import { ArrowLeft, CheckCircle, Copy, Heart } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Copy, CreditCard, ExternalLink, Heart } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function ConfirmationPage() {
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const [copied, setCopied] = useState(false)
+  const [checkoutId, setCheckoutId] = useState<string | null>(null)
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null)
 
+  // Parâmetros de retorno do PagBank
+  const paymentId = searchParams.get('payment_id')
+  const checkoutIdParam = searchParams.get('checkout_id') 
+  const status = searchParams.get('status')
+  const reference = searchParams.get('reference_id')
+
+  // Parâmetros PIX (legado)
   const giftId = searchParams.get('gift')
   const guestName = searchParams.get('name')
   const qrCode = searchParams.get('qrCode')
   const pixPayload = searchParams.get('pixPayload')
   const transactionId = searchParams.get('transactionId')
 
-  const gift = gifts.find(g => g.id === giftId)
+  useEffect(() => {
+    if (checkoutIdParam) {
+      setCheckoutId(checkoutIdParam)
+    }
+    if (status) {
+      setPaymentStatus(status)
+    }
+  }, [checkoutIdParam, status])
 
   const copyPixCode = async () => {
     if (!pixPayload) return
@@ -32,6 +50,100 @@ export default function ConfirmationPage() {
       console.error('Erro ao copiar:', err)
     }
   }
+
+  // Página para retorno do PagBank
+  if (paymentId || checkoutId) {
+    return (
+      <div className="min-h-screen py-8 px-4">
+        <div className="container mx-auto max-w-2xl">
+          <Card className="text-center">
+            <CardHeader>
+              <div className="mx-auto mb-4">
+                {status === 'PAID' ? (
+                  <CheckCircle className="h-16 w-16 text-green-500" />
+                ) : status === 'WAITING' ? (
+                  <CreditCard className="h-16 w-16 text-yellow-500" />
+                ) : (
+                  <ExternalLink className="h-16 w-16 text-blue-500" />
+                )}
+              </div>
+              <CardTitle className="text-2xl">
+                {status === 'PAID' 
+                  ? 'Pagamento Confirmado!' 
+                  : status === 'WAITING'
+                  ? 'Pagamento Pendente'
+                  : 'Retorno do Pagamento'
+                }
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {status === 'PAID' ? (
+                <div className="space-y-4">
+                  <p className="text-lg text-green-600">
+                    ✨ Obrigado por presentear Bruno & Laura! ✨
+                  </p>
+                  <p className="text-muted-foreground">
+                    Seu pagamento foi processado com sucesso.
+                  </p>
+                  {user && (
+                    <p className="text-sm text-muted-foreground">
+                      Muito obrigado, {user.name}! 💝
+                    </p>
+                  )}
+                </div>
+              ) : status === 'WAITING' ? (
+                <div className="space-y-4">
+                  <p className="text-lg text-yellow-600">
+                    Aguardando confirmação do pagamento
+                  </p>
+                  <p className="text-muted-foreground">
+                    Seu pagamento está sendo processado. Você receberá uma confirmação em breve.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Retornamos do processamento do seu pagamento.
+                  </p>
+                  {paymentId && (
+                    <p className="text-sm text-muted-foreground">
+                      ID do Pagamento: {paymentId}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {reference && (
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm font-medium">Referência:</p>
+                  <p className="text-sm text-muted-foreground">{reference}</p>
+                </div>
+              )}
+
+              <div className="flex gap-4 justify-center">
+                <Link href="/presentes">
+                  <Button>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Ver Outros Presentes
+                  </Button>
+                </Link>
+                
+                <Link href="/">
+                  <Button variant="outline">
+                    <Heart className="mr-2 h-4 w-4" />
+                    Página Inicial
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Funcionalidade PIX (legado) 
+  const gift = gifts.find(g => g.id === giftId)
 
   if (!gift || !guestName) {
     return (

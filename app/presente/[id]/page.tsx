@@ -1,7 +1,6 @@
 'use client'
 
-import { MercadoPagoCheckout } from '@/components/mercado-pago-checkout'
-import { MercadoPagoScript } from '@/components/mercado-pago-script'
+import { PagBankCheckout } from '@/components/pagbank-checkout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -9,8 +8,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { useNotification } from '@/hooks/use-notification'
 import { useGift } from '@/lib/api-service'
 import { useAuth } from '@/lib/contexts/auth-context'
-import { MercadoPagoProvider } from '@/lib/mercado-pago-context'
-import { CheckoutCallbacks, MercadoPagoConfig } from '@/lib/types'
 import { AlertCircle, ArrowLeft, Gift, Heart, Loader2, MessageSquare, User } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -22,62 +19,26 @@ export default function PresentePage({ params }: { params: { id: string } }) {
   const [giftMessage, setGiftMessage] = useState('')
   const [showCheckout, setShowCheckout] = useState(false)
   const { gift, loading, error } = useGift(params.id as string)
-  const { showWarning, showError } = useNotification()
+  const { notifyError, notifySuccess, notifyWarning } = useNotification()
   const router = useRouter()
-
-  // Configuração do Mercado Pago
-  const mercadoPagoConfig: MercadoPagoConfig = {
-    publicKey: process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY || '',
-    apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
-  }
-
-  // Callbacks do checkout
-  const checkoutCallbacks: CheckoutCallbacks = {
-    onSuccess: (payment) => {
-      console.log('Pagamento aprovado:', payment)
-      router.push('/confirmacao')
-    },
-    onPending: (payment) => {
-      console.log('Pagamento pendente:', payment)
-    },
-    onError: (error) => {
-      console.error('Erro no pagamento:', error)
-    }
-  }
 
   const handleGiftPurchase = () => {
     if (!isAuthenticated) {
-      showWarning('Login Necessário', 'Faça login para presentear os noivos')
+      notifyWarning('Faça login para presentear os noivos')
       router.push('/login')
       return
     }
     setShowCheckout(true)
   }
 
-  // Função de teste para debug - remover em produção
-  const testAPI = async () => {
-    try {
-      const result = await fetch('http://localhost:3001/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          method: 'PIX',
-          amount: 100,
-          description: 'Teste',
-          customer: { name: 'Teste', email: 'teste@teste.com', document: '12345678901' }
-        })
-      });
-      console.log('Teste API - Status:', result.status);
-      const text = await result.text();
-      console.log('Teste API - Response:', text);
-    } catch (error) {
-      console.error('Teste API - Erro:', error);
-    }
+  const handlePaymentCreated = (paymentUrl: string) => {
+    console.log('🔗 URL de pagamento criada:', paymentUrl)
+    // O redirecionamento é feito automaticamente pelo componente
   }
 
-  // Disponibilizar função para teste no console
-  if (typeof window !== 'undefined') {
-    (window as any).testAPI = testAPI;
+  const handlePaymentError = (error: string) => {
+    notifyError(`Erro no pagamento: ${error}`)
+    setShowCheckout(false)
   }
 
   if (loading) {
@@ -127,7 +88,6 @@ export default function PresentePage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen py-8 px-4">
-      <MercadoPagoScript publicKey={mercadoPagoConfig.publicKey} />
       <div className="container mx-auto max-w-4xl">
         {/* Back Button */}
         <div className="mb-6">
@@ -238,18 +198,13 @@ export default function PresentePage({ params }: { params: { id: string } }) {
                 </CardContent>
               </Card>
             ) : !gift.claimedBy && showCheckout ? (
-              <MercadoPagoProvider config={mercadoPagoConfig}>
-                <MercadoPagoCheckout
-                  config={mercadoPagoConfig}
+              <>
+                <PagBankCheckout
                   amount={gift.price}
                   description={`Presente: ${gift.name}${giftMessage ? ` - Mensagem: ${giftMessage}` : ''}`}
-                  customer={{
-                    name: user?.name || 'Usuário',
-                    email: user?.email || 'user@example.com',
-                    document: '00000000000' // CPF temporário - idealmente deveria ser capturado
-                  }}
                   giftId={gift.id}
-                  callbacks={checkoutCallbacks}
+                  onPaymentCreated={handlePaymentCreated}
+                  onError={handlePaymentError}
                 />
                 <div className="mt-4">
                   <Button
@@ -261,7 +216,7 @@ export default function PresentePage({ params }: { params: { id: string } }) {
                     Voltar
                   </Button>
                 </div>
-              </MercadoPagoProvider>
+              </>
             ) : gift.claimedBy ? (
               <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
                 <CardContent className="p-6 text-center">
